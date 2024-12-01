@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/farjad/AI-Blockchain/blockchain"
 )
@@ -19,6 +20,10 @@ func main() {
 		fmt.Println(block.Data)
 
 		fmt.Println(block.Hash)
+
+		pow := blockchain.NewProof(block)
+		fmt.Printf("POW: %s\n", strconv.FormatBool(pow.IsValid()))
+		fmt.Println()
 	}
 
 }
