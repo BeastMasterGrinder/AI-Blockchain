@@ -1,29 +1,19 @@
 package main
 
 import (
-	"fmt"
-	"strconv"
+	"os"
 
 	"github.com/farjad/AI-Blockchain/blockchain"
+	"github.com/farjad/AI-Blockchain/cli"
 )
 
 func main() {
+	// make sure that app is closed properly to makesure that the db closes properly
+	defer os.Exit(0)
+	chain := blockchain.InitBlockChain("Sigma boys Sigma Boys")
 
-	chain := blockchain.InitBlockChain()
+	defer chain.Database.Close()
 
-	chain.AddBlock("1 block")
-	chain.AddBlock("2 block")
-	chain.AddBlock("3 block")
-
-	for _, block := range chain.Blocks {
-		fmt.Println(block.PrevHash)
-		fmt.Println(block.Data)
-
-		fmt.Println(block.Hash)
-
-		pow := blockchain.NewProof(block)
-		fmt.Printf("POW: %s\n", strconv.FormatBool(pow.IsValid()))
-		fmt.Println()
-	}
-
+	cli := cli.CmdLine{chain}
+	cli.Run()
 }

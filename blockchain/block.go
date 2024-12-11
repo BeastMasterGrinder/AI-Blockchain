@@ -1,5 +1,12 @@
 package blockchain
 
+import (
+	"bytes"
+	"encoding/gob"
+
+	"github.com/farjad/AI-Blockchain/utils"
+)
+
 type Block struct {
 	Hash []byte
 	// Transactions []*Transaction
@@ -20,18 +27,29 @@ func CreateBlock(data string, prevHash []byte) *Block {
 	return block
 }
 
-func (chain *Blockchain) AddBlock(data string) {
-	prevBlock := chain.Blocks[len(chain.Blocks)-1]
-	block := CreateBlock(data, prevBlock.Hash)
-
-	chain.Blocks = append(chain.Blocks, block)
-}
-
 func GenesisBlock() *Block {
 	genData := "Did chicken come first or the Egg?"
 	return CreateBlock(genData, []byte{})
 }
 
-func InitBlockChain() *Blockchain {
-	return &Blockchain{[]*Block{GenesisBlock()}}
+func (b *Block) Serialize() []byte {
+	var result bytes.Buffer
+	encoder := gob.NewEncoder(&result)
+
+	err := encoder.Encode((b))
+
+	utils.ErrHandle(err)
+
+	return result.Bytes()
+}
+
+func (b *Block) Deserialize(data []byte) *Block {
+	var block Block
+	res := gob.NewDecoder(bytes.NewReader(data))
+
+	err := res.Decode(&block)
+
+	utils.ErrHandle(err)
+
+	return &block
 }
