@@ -1,19 +1,31 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	"github.com/farjad/AI-Blockchain/blockchain"
 	"github.com/farjad/AI-Blockchain/cli"
+	"github.com/farjad/AI-Blockchain/ipfs"
 )
 
 func main() {
-	// make sure that app is closed properly to makesure that the db closes properly
 	defer os.Exit(0)
-	chain := blockchain.InitBlockChain("Sigma boys Sigma Boys")
+	
+	// Initialize IPFS manager
+	ipfsManager, err := ipfs.NewIPFSManager("localhost:5001")
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	// Initialize blockchain
+	chain := blockchain.InitBlockChain("Sigma boys Sigma Boys")
 	defer chain.Database.Close()
 
-	cli := cli.CmdLine{chain}
+	// Initialize CLI with both blockchain and IPFS manager
+	cli := cli.CmdLine{
+		Blockchain:  chain,
+		IPFSManager: ipfsManager,
+	}
 	cli.Run()
 }

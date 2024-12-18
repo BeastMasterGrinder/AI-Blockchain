@@ -86,29 +86,25 @@ func InitBlockChain(address string) *Blockchain {
 	return &blockchain
 }
 
-func (chain *Blockchain) AddBlock(data string) {
+func (chain *Blockchain) AddBlock(transactions []*Transaction) {
 	var lastHash []byte
 
 	err := chain.Database.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte("lh"))
 		utils.ErrHandle(err)
 		lastHash, err = item.Value()
-
 		return err
 	})
-
 	utils.ErrHandle(err)
 
-	newBlock := CreateBlock(data, lastHash)
+	newBlock := CreateBlock(transactions, lastHash)
 
 	err = chain.Database.Update(func(txn *badger.Txn) error {
 		err := txn.Set(newBlock.Hash, newBlock.Serialize())
 		utils.ErrHandle(err)
-
 		err = txn.Set([]byte("lh"), newBlock.Hash)
-
 		chain.LastHash = newBlock.Hash
-
 		return err
 	})
+	utils.ErrHandle(err)
 }

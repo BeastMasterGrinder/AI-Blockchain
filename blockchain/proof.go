@@ -39,9 +39,14 @@ func NewProof(b *Block) *ProofOfWork {
 }
 
 func (pow *ProofOfWork) MergeData(Nonce int) []byte {
+	var txBytes []byte
+	for _, tx := range pow.Block.Transactions {
+		txBytes = append(txBytes, tx.Serialize()...)
+	}
+
 	joinedData := bytes.Join(
 		[][]byte{
-			pow.Block.Data,
+			txBytes,
 			pow.Block.PrevHash,
 			utils.ToHex(int64(Nonce)),
 			utils.ToHex(int64(numZeros)),

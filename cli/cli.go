@@ -8,17 +8,31 @@ import (
 	"strconv"
 
 	"github.com/farjad/AI-Blockchain/blockchain"
+	"github.com/farjad/AI-Blockchain/ipfs"
 	"github.com/farjad/AI-Blockchain/utils"
 )
 
 type CmdLine struct {
-	Blockchain *blockchain.Blockchain
+	Blockchain  *blockchain.Blockchain
+	IPFSManager *ipfs.IPFSManager
+}
+
+func (cli *CmdLine) createTransaction(algorithmPath, inputPath string) {
+	tx, err := blockchain.NewTransaction(algorithmPath, inputPath, cli.IPFSManager)
+	if err != nil {
+		fmt.Printf("Failed to create transaction: %v\n", err)
+		runtime.Goexit()
+	}
+
+	// Add transaction to a new block
+	cli.Blockchain.AddBlock([]*blockchain.Transaction{tx})
+	fmt.Println("Transaction added successfully!")
 }
 
 func (cli *CmdLine) printUse() {
 	fmt.Println("Use:")
-	fmt.Println("Add a block")
-	fmt.Println("printing")
+	fmt.Println("  create-tx -algorithm ALGORITHM_PATH -input INPUT_PATH - Create a new transaction")
+	fmt.Println("  print - Print the blockchain")
 }
 
 func (cli *CmdLine) validateArgs() {
@@ -29,11 +43,6 @@ func (cli *CmdLine) validateArgs() {
 	}
 }
 
-func (cli *CmdLine) AddBlock(data string) {
-	cli.Blockchain.AddBlock(data)
-	fmt.Println("Succesfully! Added a block to the blockchain")
-}
-
 func (cli *CmdLine) printBlockchain() {
 	iter := cli.Blockchain.Parser()
 
@@ -41,7 +50,7 @@ func (cli *CmdLine) printBlockchain() {
 		block := iter.Next()
 
 		fmt.Printf("Previous Hash: %x\n", block.PrevHash)
-		fmt.Printf("Data of the Block: %s\n", block.Data)
+		fmt.Printf("Data of the Block: %s\n", block.Transactions)
 
 		fmt.Printf("Hash of the Block: %x\n", block.Hash)
 
@@ -54,30 +63,34 @@ func (cli *CmdLine) printBlockchain() {
 func (cli *CmdLine) Run() {
 	cli.validateArgs()
 
-	addBlockCmd := flag.NewFlagSet("add", flag.ExitOnError)
-	printBlockchain := flag.NewFlagSet("print", flag.ExitOnError)
-	addBlockData := addBlockCmd.String("block", "", "Block Data")
+	createTxCmd := flag.NewFlagSet("create-tx", flag.ExitOnError)
+	printChainCmd := flag.NewFlagSet("print", flag.ExitOnError)
+
+	// Create transaction flags
+	algorithmPath := createTxCmd.String("algorithm", "", "Path to the algorithm file")
+	inputPath := createTxCmd.String("input", "", "Path to the input data file")
 
 	switch os.Args[1] {
-	case "add":
-		errors := addBlockCmd.Parse(os.Args[2:])
-		utils.ErrHandle(errors)
+	case "create-tx":
+		err := createTxCmd.Parse(os.Args[2:])
+		utils.ErrHandle(err)
 	case "print":
-		errors := printBlockchain.Parse(os.Args[2:])
-		utils.ErrHandle(errors)
+		err := printChainCmd.Parse(os.Args[2:])
+		utils.ErrHandle(err)
 	default:
 		cli.printUse()
 		runtime.Goexit()
 	}
 
-	if addBlockCmd.Parsed() {
-		if *addBlockData == "" {
-			addBlockCmd.Usage()
+	if createTxCmd.Parsed() {
+		if *algorithmPath == "" || *inputPath == "" {
+			createTxCmd.Usage()
 			runtime.Goexit()
 		}
-		cli.AddBlock(*addBlockData)
+		cli.createTransaction(*algorithmPath, *inputPath)
 	}
-	if printBlockchain.Parsed() {
+
+	if printChainCmd.Parsed() {
 		cli.printBlockchain()
 	}
 }

@@ -13,7 +13,7 @@ import (
 )
 
 type IPFSManager struct {
-	Shell *shell.Shell
+	Shell   *shell.Shell
 	TempDir string
 }
 
@@ -21,82 +21,113 @@ type IPFSManager struct {
 func NewIPFSManager(ipfsURL string) (*IPFSManager, error) {
 	sh := shell.NewShell(ipfsURL)
 	tempDir := "./temp/ipfs"
-	
-	// Create temp directory if it doesn't exist
+
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %v", err)
 	}
 
 	return &IPFSManager{
-		Shell: sh,
+		Shell:   sh,
 		TempDir: tempDir,
 	}, nil
 }
 
-// UploadAlgorithm uploads an algorithm file to IPFS and returns its CID and hash
+func (im *IPFSManager) downloadFromIPFS(cid, outputPath string) error {
+	fmt.Printf("Downloading %s from IPFS...\n", cid)
+
+	reader, err := im.Shell.Cat(cid)
+	if err != nil {
+		return fmt.Errorf("failed to download file from IPFS: %v", err)
+	}
+	defer reader.Close()
+
+	content, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read file content: %v", err)
+	}
+
+	err = ioutil.WriteFile(outputPath, content, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+
+	fmt.Printf("File downloaded to %s\n", outputPath)
+	return nil
+}
+
+func (im *IPFSManager) uploadToIPFS(filePath string) (string, string, error) {
+	fmt.Printf("Uploading %s to IPFS...\n", filePath)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to open file: %v", err)
+	}
+	defer file.Close()
+
+	// Calculate file hash
+	content, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read file for hashing: %v", err)
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256(content))
+
+	// Upload to IPFS
+	cid, err := im.Shell.Add(file)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to upload file to IPFS: %v", err)
+	}
+
+	fmt.Printf("File uploaded with CID: %s\n", cid)
+	return cid, hash, nil
+}
+
 func (im *IPFSManager) UploadAlgorithm(algorithmPath string) (string, string, error) {
-	// Upload to IPFS
-	cid, err := uploadToIPFS(im.Shell, algorithmPath)
-	if err != nil {
-		return "", "", err
-	}
-
-	// Calculate hash of the algorithm
-	hash, err := calculateFileHash(algorithmPath)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to calculate algorithm hash: %v", err)
-	}
-
-	return cid, hash, nil
+	return im.uploadToIPFS(algorithmPath)
 }
 
-// UploadData uploads input data to IPFS and returns its CID and hash
 func (im *IPFSManager) UploadData(dataPath string) (string, string, error) {
-	// Upload to IPFS
-	cid, err := uploadToIPFS(im.Shell, dataPath)
-	if err != nil {
-		return "", "", err
-	}
-
-	// Calculate hash of the data
-	hash, err := calculateFileHash(dataPath)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to calculate data hash: %v", err)
-	}
-
-	return cid, hash, nil
+	return im.uploadToIPFS(dataPath)
 }
 
-// ExecuteAlgorithm downloads algorithm and data from IPFS, executes it, and returns output hash
-func (im *IPFSManager) ExecuteAlgorithm(algorithmCID, dataCID string) (string, error) {
-	// Create temporary paths for downloaded files
-	algorithmPath := filepath.Join(im.TempDir, "algorithm.go")
-	dataPath := filepath.Join(im.TempDir, "input.data")
-	
-	// Download algorithm and data
-	if err := downloadFromIPFS(im.Shell, algorithmCID, algorithmPath); err != nil {
+func (im *IPFSManager) ExecuteAlgorithm(algCID, inputCID string) (string, error) {
+	// Create temporary paths
+	algPath := filepath.Join(im.TempDir, "algorithm.go")
+	inputPath := filepath.Join(im.TempDir, "input.data")
+	outputPath := filepath.Join(im.TempDir, "output.data")
+
+	// Download algorithm and input from IPFS
+	if err := im.downloadFromIPFS(algCID, algPath); err != nil {
 		return "", err
 	}
-	if err := downloadFromIPFS(im.Shell, dataCID, dataPath); err != nil {
+	if err := im.downloadFromIPFS(inputCID, inputPath); err != nil {
 		return "", err
+	}
+
+	// Compile the algorithm
+	execPath := filepath.Join(im.TempDir, "algorithm")
+	cmd := exec.Command("go", "build", "-o", execPath, algPath)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to compile algorithm: %v", err)
 	}
 
 	// Execute the algorithm
-	outputPath := filepath.Join(im.TempDir, "output.data")
-	if err := executeAlgorithm(algorithmPath, dataPath, outputPath); err != nil {
-		return "", err
+	cmd = exec.Command(execPath, inputPath, outputPath)
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to execute algorithm: %v", err)
 	}
 
-	// Calculate hash of the output
-	outputHash, err := calculateFileHash(outputPath)
+	// Calculate output hash
+	output, err := ioutil.ReadFile(outputPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to calculate output hash: %v", err)
+		return "", fmt.Errorf("failed to read output file: %v", err)
 	}
+	outputHash := fmt.Sprintf("%x", sha256.Sum256(output))
 
-	// Cleanup temporary files
-	os.Remove(algorithmPath)
-	os.Remove(dataPath)
+	// Cleanup
+	os.Remove(algPath)
+	os.Remove(inputPath)
 	os.Remove(outputPath)
+	os.Remove(execPath)
 
 	return outputHash, nil
 }
@@ -134,48 +165,6 @@ func executeAlgorithm(algorithmPath, inputPath, outputPath string) error {
 	}
 
 	return nil
-}
-
-func downloadFromIPFS(sh *shell.Shell, cid, outputPath string) error {
-	fmt.Printf("Downloading %s from IPFS...\n", cid)
-	data, err := sh.Cat(cid)
-	if err != nil {
-		return fmt.Errorf("failed to download file from IPFS: %v", err)
-	}
-	defer data.Close()
-
-	content, err := ioutil.ReadAll(data)
-	if err != nil {
-		return fmt.Errorf("failed to read file content: %v", err)
-	}
-
-	err = ioutil.WriteFile(outputPath, content, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %v", err)
-	}
-
-	fmt.Printf("File downloaded to %s\n", outputPath)
-	return nil
-}
-
-func uploadToIPFS(sh *shell.Shell, filePath string) (string, error) {
-	fmt.Printf("Uploading %s to IPFS...\n", filePath)
-
-	// Open the file to upload
-	file, err := os.Open(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file: %v", err)
-	}
-	defer file.Close()
-
-	// Upload to IPFS
-	cid, err := sh.Add(file)
-	if err != nil {
-		return "", fmt.Errorf("failed to upload file to IPFS: %v", err)
-	}
-
-	fmt.Printf("File uploaded with CID: %s\n", cid)
-	return cid, nil
 }
 
 func executeKMeans() error {

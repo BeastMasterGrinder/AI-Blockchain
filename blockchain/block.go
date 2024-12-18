@@ -8,28 +8,27 @@ import (
 )
 
 type Block struct {
-	Hash []byte
-	// Transactions []*Transaction
-	Data     []byte
-	PrevHash []byte
-	Nonce    int
+	Hash         []byte
+	Transactions []*Transaction
+	PrevHash     []byte
+	Nonce        int
 }
 
-func CreateBlock(data string, prevHash []byte) *Block {
-	block := &Block{Hash: []byte{}, Data: []byte(data), PrevHash: prevHash}
+func CreateBlock(transactions []*Transaction, prevHash []byte) *Block {
+	block := &Block{
+		Hash:         []byte{},
+		Transactions: transactions,
+		PrevHash:     prevHash,
+	}
 	pow := NewProof(block)
-
 	nonce, hash := pow.Proof()
-
 	block.Hash = hash[:]
 	block.Nonce = nonce
-
 	return block
 }
 
 func GenesisBlock() *Block {
-	genData := "Did chicken come first or the Egg?"
-	return CreateBlock(genData, []byte{})
+	return CreateBlock([]*Transaction{}, []byte{})
 }
 
 func (b *Block) Serialize() []byte {
