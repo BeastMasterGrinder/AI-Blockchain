@@ -21,6 +21,7 @@ type Transaction struct {
 
 // NewTransaction creates a new transaction with algorithm and input data
 func NewTransaction(algorithmPath, inputPath string, ipfsManager *ipfs.IPFSManager) (*Transaction, error) {
+
 	// Upload algorithm to IPFS
 	algCID, algHash, err := ipfsManager.UploadAlgorithm(algorithmPath)
 	if err != nil {

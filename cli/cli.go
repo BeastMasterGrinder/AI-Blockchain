@@ -9,6 +9,7 @@ import (
 
 	"github.com/farjad/AI-Blockchain/blockchain"
 	"github.com/farjad/AI-Blockchain/ipfs"
+	"github.com/farjad/AI-Blockchain/network"
 	"github.com/farjad/AI-Blockchain/utils"
 )
 
@@ -25,7 +26,8 @@ func (cli *CmdLine) createTransaction(algorithmPath, inputPath string) {
 	}
 
 	// Add transaction to a new block
-	cli.Blockchain.AddBlock([]*blockchain.Transaction{tx})
+	block := blockchain.CreateBlock([]*blockchain.Transaction{tx}, cli.Blockchain.LastHash, cli.Blockchain.GetBestHeight()+1)
+	cli.Blockchain.AddBlock(block)
 	fmt.Println("Transaction added successfully!")
 }
 
@@ -59,12 +61,27 @@ func (cli *CmdLine) printBlockchain() {
 		fmt.Println()
 	}
 }
+func (cli *CmdLine) startNode(nodeID string) {
+	network.StartServer(nodeID, "gagaga")
+	fmt.Printf("Node %s is up and running\n", nodeID)
+
+}
 
 func (cli *CmdLine) Run() {
 	cli.validateArgs()
 
+	// get node id as a flag in all
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		fmt.Println("NODE_ID env is not set!")
+		runtime.Goexit()
+	}
+
 	createTxCmd := flag.NewFlagSet("create-tx", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("print", flag.ExitOnError)
+	startNodeCmd := flag.NewFlagSet("start", flag.ExitOnError)
+
+	// get node id as a flag to start the node
 
 	// Create transaction flags
 	algorithmPath := createTxCmd.String("algorithm", "", "Path to the algorithm file")
@@ -76,6 +93,9 @@ func (cli *CmdLine) Run() {
 		utils.ErrHandle(err)
 	case "print":
 		err := printChainCmd.Parse(os.Args[2:])
+		utils.ErrHandle(err)
+	case "start":
+		err := startNodeCmd.Parse(os.Args[2:])
 		utils.ErrHandle(err)
 	default:
 		cli.printUse()
@@ -92,5 +112,9 @@ func (cli *CmdLine) Run() {
 
 	if printChainCmd.Parsed() {
 		cli.printBlockchain()
+	}
+
+	if startNodeCmd.Parsed() {
+		cli.startNode(nodeID)
 	}
 }

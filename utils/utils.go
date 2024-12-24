@@ -13,6 +13,7 @@ func ToHex(num int64) []byte {
 	if err != nil {
 		log.Panic(err)
 	}
+
 	return buff.Bytes()
 }
 
